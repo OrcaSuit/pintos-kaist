@@ -15,17 +15,18 @@
 #include "userprog/process.h"
 #endif
 
-/* Random value for struct thread's `magic' member.
-   Used to detect stack overflow.  See the big comment at the top
-   of thread.h for details. */
+/* struct thread의 `magic` 멤버에 대한 임의의 값.
+   스택 오버플로우를 감지하기 위해 사용됩니다. 자세한 내용은 thread.h 상단의 큰 주석을 참조하세요. */
 #define THREAD_MAGIC 0xcd6abf4b
 
-/* Random value for basic thread
-   Do not modify this value. */
+/* 기본 스레드에 대한 임의의 값
+   이 값을 수정하지 마세요. */
 #define THREAD_BASIC 0xd42df210
 
-/* List of processes in THREAD_READY state, that is, processes
-   that are ready to run but not actually running. */
+/* 최소 깨어나야 할 시간을 저장하기 위한 전역 변수 */
+static int64_t next_tick_to_awake = INT64_MAX;
+
+/* THREAD_READY 상태인 프로세스 목록, 즉 실행 준비가 되었으나 실제로 실행 중이지 않은 프로세스들입니다. */
 static struct list ready_list;
 
 /*Sleep Queue */
@@ -52,9 +53,9 @@ static long long user_ticks;   /* # of timer ticks in user programs. */
 #define TIME_SLICE 4		  /* # of timer ticks to give each thread. */
 static unsigned thread_ticks; /* # of timer ticks since last yield. */
 
-/* If false (default), use round-robin scheduler.
-   If true, use multi-level feedback queue scheduler.
-   Controlled by kernel command-line option "-o mlfqs". */
+/* false (기본값)인 경우, 라운드-로빈 스케줄러를 사용합니다.
+   true인 경우, 다중 레벨 피드백 큐 스케줄러를 사용합니다.
+   커널 명령줄 옵션 "-o mlfqs"에 의해 제어됩니다. */
 bool thread_mlfqs;
 
 static void kernel_thread(thread_func *, void *aux);
@@ -603,21 +604,22 @@ allocate_tid(void)
 /*Thread를 blocked 상태로 만들고 sleep queue에 삽입하여 대기*/
 void thread_sleep(int64_t ticks)
 {
-	struct thread *t = thread_current();
-	enum intr_level old_level;
+    struct thread *current_thread = thread_current();
+    enum intr_level old_level;
 
-	ASSERT(t->status == THREAD_RUNNING);
+    ASSERT(current_thread->status == THREAD_RUNNING);
 
-	old_level = intr_disable(); // 인터럽트 비활성화
+    old_level = intr_disable(); // 인터럽트 비활성화
 
-	/* 깨어나야 할 시간을 설정하고 슬립 큐에 추가 */
-	t->wakeup_tick = timer_ticks() + ticks;
-	list_push_back(&sleep_list, &t->elem);
+    // 깨어나야 할 시간을 설정하고 슬립 큐에 추가
+    current_thread->wakeup_tick = timer_ticks() + ticks;
+    list_push_back(&sleep_list, &current_thread->elem);
 
-	thread_block(); // 스레드 블록
+    thread_block(); // 스레드 블록
 
-	intr_set_level(old_level); // 인터럽트 복원
+    intr_set_level(old_level); // 인터럽트 복원
 }
+
 
 /*Sleep queue에서 깨워야 할 thread를 찾아서 wake*/
 void thread_awake(int64_t ticks)
@@ -645,13 +647,18 @@ void thread_awake(int64_t ticks)
     intr_set_level(old_level); // 인터럽트 복원
 }
 
-
-/*Thread들이 가진 tick 값에서 최소 값을 저장*/
+/*최소 깨어나야 할 시간을 업데이트하는 함수*/
 void update_next_tick_to_awake(int64_t ticks)
 {
+	// 다음에 깨어나야 할 최소 시간을 업데이트
+	if (ticks < next_tick_to_awake)
+	{
+		next_tick_to_awake = ticks;
+	}
 }
 
-/* 최소 tick값을 반환*/
+/* 다음에 깨어나야 할 최소 시간을 반환하는 함수 */
 int64_t get_next_tick_to_awake(void)
 {
+	return next_tick_to_awake;
 }
