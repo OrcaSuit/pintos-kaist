@@ -133,8 +133,11 @@ static void
 timer_interrupt(struct intr_frame *args UNUSED)
 {
 	ticks++;
-	thread_tick();
 
+	if (ticks >= get_next_tick_to_awake())
+	{
+		thread_tick();
+	}
 	// thread_awake 함수 호출 추가 슬립 큐에 있는 스레드들 중 깨어나야할 스레드들을 깨우게 됨.
 	thread_awake(ticks);
 }

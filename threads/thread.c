@@ -612,7 +612,7 @@ void thread_sleep(int64_t ticks)
     old_level = intr_disable(); // 인터럽트 비활성화
 
     // 깨어나야 할 시간을 설정하고 슬립 큐에 추가
-    current_thread->wakeup_tick = timer_ticks() + ticks;
+    current_thread->wakeup_tick = ticks;
     list_push_back(&sleep_list, &current_thread->elem);
 
     thread_block(); // 스레드 블록
